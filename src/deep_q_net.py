@@ -1,8 +1,3 @@
-# partie 2 Deep Q-network sur CartPole
-
-
-
-from random import seed
 import gym
 import argparse
 from gym import wrappers, logger
@@ -10,6 +5,7 @@ from gym import wrappers, logger
 
 import torch
 import numpy as np
+import random
 import matplotlib.pyplot as plt
 
 from collections import namedtuple
@@ -29,7 +25,7 @@ class RandomAgent(object):
 class RewordRecorder():
 
     def __init__(self) -> None:
-        self.mean_rewards = []
+        self.rewards = []
 
     def start_episode(self):
         self.c = 0
@@ -40,11 +36,11 @@ class RewordRecorder():
         self.r_sum += reward
 
     def recorde_episode(self):
-        self.mean_rewards.append(self.r_sum/self.c)
+        self.rewards.append(self.r_sum)
 
     def show(self):
-        plt.plot(self.mean_rewards)
-        plt.ylabel('avg rewards par episode')
+        plt.plot(self.rewards)
+        plt.ylabel('rewards par episode')
         plt.xlabel('episodes')
         plt.show()
 
@@ -60,7 +56,15 @@ class Buffer():
 
     # 2.2.4
     def get_sample(self, size):
-        return np.random.choice(self.buffer, size=size, replace=False)
+        if len(self.buffer) < size: # the sample size can't be bigger than the buffer
+            print('Warning: simple size bigger than buffer size')
+            size = len(self.buffer)
+
+        return random.sample(self.buffer, size)
+
+
+    def __len__(self) -> int:
+        return len(self.buffer)
 
     def add_value(self, value):
         if len(self.buffer) < self.buffer_size:
@@ -100,14 +104,20 @@ class FCModel(torch.nn.Module):
 
     def __init__(self, input_size, output_size, hidden_layer_size=None) -> None:
         super(FCModel, self).__init__()
-        h_l_size = ((input_size + output_size) // 2) if hidden_layer_size is None else hidden_layer_size
+        h_l_size = ((input_size * output_size)) if hidden_layer_size is None else hidden_layer_size
+
         self.fc_in = torch.nn.Linear(input_size, h_l_size)
+        # self.fc_hidden = torch.nn.Linear(h_l_size, h_l_size)
         self.fc_out = torch.nn.Linear(h_l_size, output_size)
+
         self.relu = torch.nn.functional.relu
+        self.leaky_relu = torch.nn.functional.leaky_relu
         self.sigmaoide = torch.sigmoid
 
     def forward(self, x):
+        # x = self.leaky_relu(self.fc_in(x))
         x = self.relu(self.fc_in(x))
+        # x = self.relu(self.fc_hidden(x))
         return self.sigmaoide(self.fc_out(x))
 
 
@@ -124,16 +134,36 @@ class DeepNetAgent():
         self.optimizer = torch.optim.SGD(self.net.parameters(), lr=lr, momentum=momentum)
 
 
-    def train(self, buffer: Buffer, sample_size: int):
+    def train(self, buffer: Buffer, sample_size: int, alpha: float, debug=False):
 
         samples = buffer.get_sample(sample_size)
 
-        print(samples)
+        inputs = torch.tensor([ s.state for s in samples ]).float()
+        next_states = torch.tensor([ s.next_state for s in samples ]).float()
+        dones = torch.tensor([ 0 if s.done else 1 for s in samples ]).reshape((len(samples),1))
+        rewards = torch.tensor([ s.reward for s in samples ]).reshape((len(samples),1))
 
-        inputs = []
-        labels = []
+        qvalues = self.net(inputs)
+        next_states_qvs = self.net(next_states)
+        next_states_max_qvs = torch.max(next_states_qvs, dim=1).values.reshape((len(samples),1))
+
+        # print(qvalues.shape)
+        # print(rewards.shape)
+        # print(dones.shape)
+        # print('next_states_max_qvs', next_states_max_qvs.shape)
+
+
+        labels = qvalues - (rewards + alpha * next_states_max_qvs * dones)
+
+        if debug:
+            print('samples', samples)
+            print('inputs', inputs)
+            print('qvalues', qvalues)
+            print('labels', labels)
+            input('next?')
 
         # zero the parameter gradients
+
         self.optimizer.zero_grad()
 
         # forward + backward + optimize
@@ -142,33 +172,35 @@ class DeepNetAgent():
         loss.backward()
         self.optimizer.step()
     
-    def greedy_exploration(self, prediction, debug):
+    # 2.3.6
+    def greedy_exploration(self, qvalues, debug):
         if np.random.rand() < self.epsilon_proba:
             random_action = np.random.choice(self.a_space.n, size=1, replace=False)
             return random_action[0]
 
-        action = torch.argmax(prediction)
+        action = torch.argmax(qvalues)
+        
         if debug:
             print(action)
 
         return int(action)
 
+    #2.3.6
     def act(self, ob, reward, done, debug=False):
         inputs = torch.tensor([ob]).float()
-        prediction = self.net(inputs)
-        
+        qvaleurs = self.net(inputs)
+
         if debug:
             print(inputs)
-            print(prediction)
+            print(qvaleurs)
             input('next?')
 
-        return self.greedy_exploration(prediction, debug)
+        return self.greedy_exploration(qvaleurs, debug)
 
 
 if __name__ == '__main__':
 
     _buffer_test()
-
 
     parser = argparse.ArgumentParser(description=None)
     parser.add_argument('env_id', nargs='?', default='CartPole-v1', help='Select the environment to run')
@@ -195,13 +227,14 @@ if __name__ == '__main__':
     reword_recorder = RewordRecorder()
 
     BATCH_SIZE = 128
+    ALPHA = 0.6
 
-    buffer = Buffer(1000)
+    buffer = Buffer(10000)
 
     for i in range(episode_count):
         ob = env.reset()
         reword_recorder.start_episode()
-
+        step = 0
         while True:
             action = agent.act(ob, reward, done)
             reword_recorder.add_value(reward)
@@ -212,9 +245,20 @@ if __name__ == '__main__':
             interaction = Interaction(interaction.state, interaction.action, ob, reward, done)
 
             buffer.add_value(interaction)
-            # env.render()
+
+            if len(buffer) > BATCH_SIZE:
+                agent.train(buffer, BATCH_SIZE, ALPHA)
+
+            env.render()
+
+            step += 1
+
             if done:
+                if i % 100 == 0:
+                    print('episode {} done took {} steps'.format(i, step))
+
                 reword_recorder.recorde_episode()
+
                 break
             # Note there's no env.render() here. But the environment still can open window and
             # render if asked by env.monitor: it calls env.render('rgb_array') to record video.
@@ -225,4 +269,3 @@ if __name__ == '__main__':
 
     reword_recorder.show()
 
-    
