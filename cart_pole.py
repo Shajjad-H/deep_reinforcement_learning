@@ -44,12 +44,13 @@ if __name__ == "__main__":
         step = 0
         while True:
             action = agent.act(ob, reward, done)
-            reword_recorder.add_value(reward)
 
             actions[action] += 1
 
             interaction = Interaction(ob, action, None, None, None)
             ob, reward, done, _ = env.step(action)
+
+            reword_recorder.add_value(reward)
 
             interaction = Interaction(interaction.state, interaction.action, ob, reward, done)
 

@@ -1,3 +1,7 @@
 .vscode
 test.py
 __pycache__
+_vizdoom
+_vizdoom.ini
+
+vizdoomgym

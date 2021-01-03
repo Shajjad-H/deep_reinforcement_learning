@@ -4,11 +4,13 @@ from gym import wrappers, logger
 
 
 import torch
-import numpy as np
 import random
+import skimage
+import numpy as np
 import matplotlib.pyplot as plt
 
 from collections import namedtuple
+
 
 
 # 2.1.1
@@ -75,7 +77,6 @@ class Buffer():
         self.ci = (self.ci + 1) % self.buffer_size
 
 
-
 def _buffer_test():
     buffer = Buffer(10)
     
@@ -91,7 +92,6 @@ def _buffer_test():
     assert np.all(buffer.buffer == last_part) == True
 
 Interaction = namedtuple(typename='Interaction', field_names=['state', 'action', 'next_state', 'reward', 'done'])
-
 
 
 """
@@ -120,21 +120,63 @@ class FCModel(torch.nn.Module):
         return self.fc_out(x)
 
 
-class CartPoleAgent():
+class Agent():
 
-    def __init__(self, env: gym.Env, alpha=0.005, update_count=500, epsilon_proba=0.1, lr=0.005) -> None:
-        
+    def __init__(self, env: gym.Env, alpha=0.005, update_count=500, epsilon_proba=0.1, lr=0.005):
         self.ob_space = env.observation_space # espace des états
         self.a_space = env.action_space # espace des actions
         self.epsilon_proba = epsilon_proba # for greedy exploration
         self.alpha = alpha
+        self.count_learn = 0
+        self.update_count = update_count
+
+    # 2.3.6
+    def greedy_exploration(self, qvalues, debug) -> int:
+
+        if np.random.rand() < self.epsilon_proba:   return self.a_space.sample()
+
+        action = torch.argmax(qvalues)
+        if debug:  print(action)
+        return int(action)
+
+
+    #2.3.6
+    def act(self, ob, reward, done, debug=False):
+
+        inputs = torch.tensor([ob]).float()
+
+        self.net.eval() # eval mod
+        with torch.no_grad():  qvaleurs = self.net(inputs)
+        self.net.train() # train mod
+
+        if debug:
+            print(inputs)
+            print(qvaleurs)
+            input('next?')
+
+        return self.greedy_exploration(qvaleurs, debug)
+
+
+    def copy_model(self):
+        eval_dict = self.net.state_dict()
+        target_dict = self.net.state_dict()
+
+        for weights in eval_dict:
+            target_dict[weights] = (1 - self.alpha) * target_dict[weights] + self.alpha * eval_dict[weights]
+
+        return target_dict
+
+
+class CartPoleAgent(Agent):
+
+    def __init__(self, env: gym.Env, alpha=0.005, update_count=500, epsilon_proba=0.1, lr=0.005) -> None:
+
+        super().__init__(env, alpha, update_count, epsilon_proba, lr)
 
         self.net = FCModel(self.ob_space.shape[0], self.a_space.n)
         self.target_net = FCModel(self.ob_space.shape[0], self.a_space.n)
         self.target_net.load_state_dict(self.net.state_dict())
 
-        self.count_learn = 0
-        self.update_count = update_count
 
         self.loss_func = torch.nn.MSELoss() # the mean squared error
         self.optimizer = torch.optim.SGD(self.net.parameters(), lr=lr)
@@ -157,7 +199,7 @@ class CartPoleAgent():
         with torch.no_grad(): 
             next_states_qvs = self.target_net(next_states).max(1).values.unsqueeze(1)
 
-        labels = rewards #+ (gamma * next_states_qvs * dones)
+        labels = rewards + (gamma * next_states_qvs * dones)
 
         if debug:
             print('samples', samples[0])
@@ -183,42 +225,47 @@ class CartPoleAgent():
         self.target_net.load_state_dict(self.copy_model())#self.net.state_dict())
 
 
-    def copy_model(self):
-        eval_dict = self.net.state_dict()
-        target_dict = self.net.state_dict()
 
-        for weights in eval_dict:
-            target_dict[weights] = (1 - self.alpha) * target_dict[weights] + self.alpha * eval_dict[weights]
 
-        return target_dict
 
-    # 2.3.6
-    def greedy_exploration(self, qvalues, debug):
-        
-        if np.random.rand() < self.epsilon_proba: return self.a_space.sample()
+class CnnModel(torch.nn.Module):
 
-        action = torch.argmax(qvalues)
+    def __init__(self, input_size, output_size, hidden_layer_size=None) -> None:
+        super(FCModel, self).__init__()
 
-        if debug:  print(action)
 
-        return int(action)
+    def forward(self, x):
+        pass
 
-    #2.3.6
+
+
+class VizDoomAgent(Agent):
+
+    def __init__(self, env: gym.Env, alpha=0.005, u_c=500, eps=0.1, lr=0.005, res=(112, 64, 3)):
+        super().__init__(env, alpha, u_c, eps, lr)
+        self.resolution = res
+
+
+
+    def train(self, buffer: Buffer, sample_size: int, gamma: float, debug=False):
+
+        samples = buffer.get_sample(sample_size)
+
+
+
     def act(self, ob, reward, done, debug=False):
+        return super().act(self.preprocess(ob), reward, done, debug)
 
-        inputs = torch.tensor([ob]).float()
 
-        self.net.eval() # eval mod
-        with torch.no_grad():  qvaleurs = self.net(inputs)
-        self.net.train() # train mod
-
-        if debug:
-            print(inputs)
-            print(qvaleurs)
-            input('next?')
-
-        return self.greedy_exploration(qvaleurs, debug)
-
+    def preprocess(self, img):
+        img = skimage.transform.resize(img, self.resolution)
+        #passage en noir et blanc
+        img = skimage.color.rgb2gray(img)
+        #passage en format utilisable par pytorch
+        img = img.astype(np.float32)
+        # print(img.shape)
+        # img = img.reshape((self.resolution[0], self.resolution[1], 1))
+        return img
 
 
 if __name__ == '__main__':
