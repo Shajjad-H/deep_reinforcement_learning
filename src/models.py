@@ -246,17 +246,17 @@ class CnnModel(torch.nn.Module):
     def __init__(self, h, w, output_size):
         super(CnnModel, self).__init__()
         self.conv1 = torch.nn.Conv2d(in_channels=1, out_channels=16, kernel_size=5, stride=1)
-        self.conv2 = torch.nn.Conv2d(16, 32, kernel_size=5, stride=1)
-        self.conv3 = torch.nn.Conv2d(32, 32, kernel_size=5, stride=1)
+        self.conv2 = torch.nn.Conv2d(16, 16, kernel_size=5, stride=1)
+        # self.conv3 = torch.nn.Conv2d(32, 32, kernel_size=5, stride=1)
 
         # Number of Linear input connections depends on output of conv2d layers
         # and therefore the input image size, so compute it.
         def conv2d_size_out(size, kernel_size = 5, stride = 1):
             return (size - (kernel_size - 1) - 1) // stride  + 1
 
-        convw = conv2d_size_out(conv2d_size_out(conv2d_size_out(w)))
-        convh = conv2d_size_out(conv2d_size_out(conv2d_size_out(h)))
-        linear_input_size = convw * convh * 32
+        convw = conv2d_size_out(conv2d_size_out(w))
+        convh = conv2d_size_out(conv2d_size_out(h))
+        linear_input_size = convw * convh * 16
 
         self.head = torch.nn.Linear(linear_input_size, output_size)
 
