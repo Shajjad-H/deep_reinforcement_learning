@@ -149,7 +149,7 @@ class Agent():
         torch.save(self.net.state_dict(), path)
 
     #2.3.6
-    def act(self, ob, reward, done, debug=True):
+    def act(self, ob, reward, done, debug=False):
 
         # au début on explore bcp avec epsilon_proba=1
         # puis on limite exploration et on se concentre plus sur les meilleurs actions
