@@ -27,12 +27,12 @@ if __name__ == "__main__":
 
     agent = VizDoomAgent(env)
 
-    episode_count = 5
+    episode_count = 1000
     reward = 0
     done = False
     reword_recorder = RewordRecorder()
 
-    BATCH_SIZE = 30
+    BATCH_SIZE = 128
     GAMMA = 0.9 # qlearning param
     render = False
 
@@ -42,7 +42,7 @@ if __name__ == "__main__":
 
     buffer = Buffer(20000)
 
-    skip_frame = 10
+    skip_frame = 3
 
     for i in range(episode_count):
         ob = env.reset()
