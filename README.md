@@ -8,6 +8,6 @@ https://web.stanford.edu/class/psych209/Readings/MnihEtAlHassibis15NatureControl
 
 #### ou installation manuelle
 
-`conda install matplotlib pytorch torchvision -c pytorch`
+`conda install matplotlib scikit-image pytorch torchvision -c pytorch`
 
 `conda install -c conda-forge gym`

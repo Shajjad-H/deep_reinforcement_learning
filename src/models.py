@@ -30,11 +30,9 @@ class RewordRecorder():
         self.rewards = []
 
     def start_episode(self):
-        self.c = 0
         self.r_sum = 0
 
     def add_value(self, reward):
-        self.c += 1
         self.r_sum += reward
 
     def recorde_episode(self):
@@ -131,22 +129,46 @@ class Agent():
         self.alpha = alpha
         self.count_learn = 0
         self.update_count = update_count
+        self.train_mod = True
 
+
+
+    def preprocess(self, ob):
+        return ob
+
+    def load(self, path):
+        print('model loaded from:', path)
+        self.train_mod = False
+
+        checkpoint = torch.load(path)
+        # self.epsilon_proba = checkpoint['epsilon_proba']
+        print('epoch', checkpoint['epoch'])
+
+        self.net.load_state_dict(checkpoint['model_state_dict'])
+        # self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        self.net.eval()
+
+
+
+    def save(self, path, epoch):
+        checkpoint = {
+                'epoch': epoch,
+                'model_state_dict': self.net.state_dict(),
+                # 'optimizer_state_dict': self.optimizer.state_dict(),
+                # 'epsilon_proba': self.epsilon_proba,
+            }
+        torch.save(checkpoint, path)
 
     # 2.3.6
     def greedy_exploration(self, qvalues, debug) -> int:
 
-        if np.random.rand() < self.epsilon_proba:   return self.a_space.sample()
+        if self.train_mod and np.random.rand() < self.epsilon_proba:
+            return self.a_space.sample()
 
         action = torch.argmax(qvalues)
         if debug:  print(action)
         return int(action)
 
-    def preprocess(self, ob):
-        return ob
-
-    def save(self, path):
-        torch.save(self.net.state_dict(), path)
 
     #2.3.6
     def act(self, ob, reward, done, debug=False):
@@ -154,14 +176,17 @@ class Agent():
         # au début on explore bcp avec epsilon_proba=1
         # puis on limite exploration et on se concentre plus sur les meilleurs actions
 
-        if self.epsilon_proba > self.epsilon_min:
+        if self.train_mod and self.epsilon_proba > self.epsilon_min:
             self.epsilon_proba *= self.epsilon_decay
 
         inputs = torch.tensor([ob]).float()
-
-        self.net.eval() # eval mod
-        with torch.no_grad():  qvaleurs = self.net(inputs)
-        self.net.train() # train mod
+        
+        if self.train_mod:
+            self.net.eval() # eval mod
+            with torch.no_grad():  qvaleurs = self.net(inputs)
+            self.net.train() # train mod
+        else:
+            with torch.no_grad():  qvaleurs = self.net(inputs)
 
         if debug:
             print(inputs)
@@ -169,6 +194,7 @@ class Agent():
             input('next?')
 
         return self.greedy_exploration(qvaleurs, debug)
+
 
     def train(self, buffer: Buffer, sample_size: int, gamma: float, debug=False):
 
@@ -214,7 +240,6 @@ class Agent():
         # if self.update_count < self.count_learn:
         #     self.count_learn = 0
         self.target_net.load_state_dict(self.copy_model())#self.net.state_dict())
-
 
 
     def copy_model(self):

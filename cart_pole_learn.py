@@ -4,6 +4,7 @@ from gym import wrappers, logger
 
 from src.models import Buffer, CartPoleAgent, Interaction, RewordRecorder
 
+import math
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=None)
@@ -21,37 +22,55 @@ if __name__ == "__main__":
     # will be namespaced). You can also dump to a tempdir if you'd
     # like: tempfile.mkdtemp().
     outdir = '/tmp/random-agent-results'
-    PATH = 'saved_nets/cart_pole.pt'
     # env = wrappers.Monitor(env, directory=outdir, force=True)
     env.seed(0)
     agent = CartPoleAgent(env)
-    agent.load(PATH)
 
+    PATH = 'saved_nets/cart_pole.pt'
 
-    episode_count = 1000
+    episode_count = 600
     reward = 0
     done = False
     reword_recorder = RewordRecorder()
 
+    best_reward = -math.inf
+
+    BATCH_SIZE = 128 
+    GAMMA = 0.9 # qlearning param
     render = False
 
     actions = {0: 0, 1:0}
 
+    buffer = Buffer(90000)
+
+
     for i in range(episode_count):
         ob = env.reset()
-        step = 0
         reword_recorder.start_episode()
+        step = 0
         while True:
             action = agent.act(ob, reward, done)
+
             actions[action] += 1
+
+            interaction = Interaction(ob, action, None, None, None)
             ob, reward, done, _ = env.step(action)
 
             reword_recorder.add_value(reward)
+
+            interaction = Interaction(interaction.state, interaction.action, ob, reward, done)
+
+            buffer.add_value(interaction)
+
+            if len(buffer) > BATCH_SIZE:  
+                agent.train(buffer, BATCH_SIZE, GAMMA)
+
             if render:  env.render()
 
             step += 1
+
             if done:
-                if i % 100 == 0:
+                if i % 50 == 0:
                     print('episode {} done took {} steps'.format(i, step))
                 reword_recorder.recorde_episode()
                 break
@@ -59,9 +78,12 @@ if __name__ == "__main__":
             # render if asked by env.monitor: it calls env.render('rgb_array') to record video.
             # Video is not recorded every episode, see capped_cubic_video_schedule for details.
 
+        if best_reward <= reword_recorder.rewards[-1]:
+            agent.save(PATH, i)
+
     # Close the env and write monitor result info to disk
     env.close()
-    
-    print(actions)
 
-    reword_recorder.show()
+    # reword_recorder.show()
+
+    # agent.save(PATH, episode_count)
