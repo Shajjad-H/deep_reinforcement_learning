@@ -25,13 +25,13 @@ if __name__ == "__main__":
     env.seed(0)
     agent = CartPoleAgent(env)
 
-    episode_count = 1000
+    episode_count = 600
     reward = 0
     done = False
     reword_recorder = RewordRecorder()
 
-    BATCH_SIZE = 128
-    GAMMA = 0.2 # qlearning param
+    BATCH_SIZE = 128 
+    GAMMA = 0.9 # qlearning param
     render = False
 
     actions = {0: 0, 1:0}
@@ -64,7 +64,7 @@ if __name__ == "__main__":
             step += 1
 
             if done:
-                if i % 500 == 0:
+                if i % 50 == 0:
                     print('episode {} done took {} steps'.format(i, step))
                 reword_recorder.recorde_episode()
                 break

@@ -23,55 +23,75 @@ if __name__ == "__main__":
     # want to change the amount of output.
     logger.set_level(logger.INFO)
 
-    env = gym.make(args.env_id)
+    env = gym.make(args.env_id, depth=True, labels=True, position=True, health=True)
 
     agent = VizDoomAgent(env)
 
-    episode_count = 1000
+    episode_count = 5
     reward = 0
     done = False
     reword_recorder = RewordRecorder()
 
-    BATCH_SIZE = 128
-    GAMMA = 0.2 # qlearning param
+    BATCH_SIZE = 30
+    GAMMA = 0.9 # qlearning param
     render = False
 
-    actions = {0: 0, 1:0}
+    PATH = 'saved_nets/viz_doom_cnn.pt'
 
-    buffer = Buffer(90000)
+    actions = {0: 0, 1:0, 2:0}
+
+    buffer = Buffer(20000)
+
+    skip_frame = 10
 
     for i in range(episode_count):
         ob = env.reset()
         reword_recorder.start_episode()
         step = 0
-        done = False
-        while not done:
+        while True:
 
             action = agent.act(agent.preprocess(ob), reward, done)
-            interaction = Interaction(ob, action, None, None, None)
-            ob, reward, done, _ = env.step(action)
-            interaction = Interaction(interaction.state, interaction.action, agent.preprocess(ob), reward, done)
 
+            if step % skip_frame == 0:
+                interaction = Interaction(agent.preprocess(ob), action, None, None, None)
+
+            if step % 50 == 0:
+                print(step)
+
+            if step % skip_frame == 0:
+                ob, reward, done, _ = env.step(action)
+                interaction = Interaction(interaction.state, interaction.action, agent.preprocess(ob), reward, done)
+            else:
+                _, reward, _, _ = env.step(action)
+
+            
             reword_recorder.add_value(reward)
 
+            actions[action] += 1
 
-            buffer.add_value(interaction)
+            if step % skip_frame == 0:
+                buffer.add_value(interaction)
 
-            if len(buffer) > BATCH_SIZE:  
-                agent.train(buffer, BATCH_SIZE, GAMMA)
+                if len(buffer) > BATCH_SIZE:  
+                    agent.train(buffer, BATCH_SIZE, GAMMA)
 
             if render:  env.render()
 
             step += 1
 
             if done:
-                if i % 500 == 0:
-                    print('episode {} done took {} steps'.format(i, step))
+                # if i % 10 == 0:
                 reword_recorder.recorde_episode()
+                print('episode {} done took {} steps and reward {} '.format(i, step, reword_recorder.rewards[-1]))
                 break
 
         # env.render()
         # input('next?')
 
     env.close()
+    reword_recorder.show()
+
+    agent.save(PATH)
+
+
 

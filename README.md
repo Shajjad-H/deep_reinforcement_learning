@@ -6,7 +6,7 @@ https://web.stanford.edu/class/psych209/Readings/MnihEtAlHassibis15NatureControl
 ### mise en route
 `conda env create -f environment.yml` 
 
-#### or manuel installation
+#### ou installation manuelle
 
 `conda install matplotlib pytorch torchvision -c pytorch`
 

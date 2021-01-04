@@ -49,7 +49,7 @@ class RewordRecorder():
 
 # 2.2.3
 class Buffer():
-# a generale buffer.
+# a generale buffer from pytorch doc.
     
     def __init__(self, buffer_size) -> None:
         self.buffer_size = buffer_size
@@ -107,28 +107,31 @@ class FCModel(torch.nn.Module):
         print('initializing FCModel input size:', input_size, 'output size:', output_size, 'hidden layer:', h_l_size)
 
         self.fc_in = torch.nn.Linear(input_size, h_l_size)
-        # self.fc_hidden = torch.nn.Linear(h_l_size, h_l_size)
+        self.fc_hidden = torch.nn.Linear(h_l_size, h_l_size)
         self.fc_out = torch.nn.Linear(h_l_size, output_size)
 
         self.relu = torch.nn.functional.relu
-        # self.leaky_relu = torch.nn.LeakyReLU(negative_slope=0.2)
+        self.leaky_relu = torch.nn.LeakyReLU(negative_slope=0.2)
 
 
     def forward(self, x):
-        x = self.relu(self.fc_in(x))
-        # x = self.relu(self.fc_hidden(x))
+        x = self.leaky_relu(self.fc_in(x))
+        x = self.relu(self.fc_hidden(x))
         return self.fc_out(x)
 
 
 class Agent():
 
-    def __init__(self, env: gym.Env, alpha=0.005, update_count=500, epsilon_proba=0.1, lr=0.005):
+    def __init__(self, env: gym.Env, alpha, update_count, epsilon_proba, lr):
         self.ob_space = env.observation_space # espace des états
         self.a_space = env.action_space # espace des actions
         self.epsilon_proba = epsilon_proba # for greedy exploration
+        self.epsilon_decay = 0.995
+        self.epsilon_min = 0.08
         self.alpha = alpha
         self.count_learn = 0
         self.update_count = update_count
+
 
     # 2.3.6
     def greedy_exploration(self, qvalues, debug) -> int:
@@ -139,9 +142,20 @@ class Agent():
         if debug:  print(action)
         return int(action)
 
+    def preprocess(self, ob):
+        return ob
+
+    def save(self, path):
+        torch.save(self.net.state_dict(), path)
 
     #2.3.6
-    def act(self, ob, reward, done, debug=False):
+    def act(self, ob, reward, done, debug=True):
+
+        # au début on explore bcp avec epsilon_proba=1
+        # puis on limite exploration et on se concentre plus sur les meilleurs actions
+
+        if self.epsilon_proba > self.epsilon_min:
+            self.epsilon_proba *= self.epsilon_decay
 
         inputs = torch.tensor([ob]).float()
 
@@ -156,32 +170,6 @@ class Agent():
 
         return self.greedy_exploration(qvaleurs, debug)
 
-
-    def copy_model(self):
-        eval_dict = self.net.state_dict()
-        target_dict = self.net.state_dict()
-
-        for weights in eval_dict:
-            target_dict[weights] = (1 - self.alpha) * target_dict[weights] + self.alpha * eval_dict[weights]
-
-        return target_dict
-
-
-class CartPoleAgent(Agent):
-
-    def __init__(self, env: gym.Env, alpha=0.005, update_count=500, epsilon_proba=0.1, lr=0.005) -> None:
-
-        super().__init__(env, alpha, update_count, epsilon_proba, lr)
-
-        self.net = FCModel(self.ob_space.shape[0], self.a_space.n)
-        self.target_net = FCModel(self.ob_space.shape[0], self.a_space.n)
-        self.target_net.load_state_dict(self.net.state_dict())
-
-
-        self.loss_func = torch.nn.MSELoss() # the mean squared error
-        self.optimizer = torch.optim.SGD(self.net.parameters(), lr=lr)
-
-
     def train(self, buffer: Buffer, sample_size: int, gamma: float, debug=False):
 
         samples = buffer.get_sample(sample_size)
@@ -194,6 +182,8 @@ class CartPoleAgent(Agent):
 
         # le model calcule q(s) puis on selectionne q(s, a) selon les action prise
         qvalues = self.net(inputs).gather(1, actions_took)
+        
+        # print(qvalues.shape)
 
         self.target_net.eval()
         with torch.no_grad(): 
@@ -209,7 +199,8 @@ class CartPoleAgent(Agent):
             print('next_states_max_qvs', next_states_qvs[:5])
             print('labels', labels[:5])
             input('next?')
-        
+
+
         # zero the parameter gradients
         self.optimizer.zero_grad()
         # forward + backward + optimize
@@ -226,45 +217,89 @@ class CartPoleAgent(Agent):
 
 
 
+    def copy_model(self):
+        eval_dict = self.net.state_dict()
+        target_dict = self.net.state_dict()
+
+        for weights in eval_dict:
+            target_dict[weights] = (1 - self.alpha) * target_dict[weights] + self.alpha * eval_dict[weights]
+
+        return target_dict
+
+
+class CartPoleAgent(Agent):
+
+    def __init__(self, env: gym.Env, alpha=0.01, update_count=500, epsilon_proba=1.0, lr=0.005):
+
+        super().__init__(env, alpha, update_count, epsilon_proba, lr)
+
+        self.net = FCModel(self.ob_space.shape[0], self.a_space.n)
+        self.target_net = FCModel(self.ob_space.shape[0], self.a_space.n)
+        self.target_net.load_state_dict(self.net.state_dict())
+
+        self.loss_func = torch.nn.MSELoss() # the mean squared error
+        self.optimizer = torch.optim.SGD(self.net.parameters(), lr=lr)
 
 
 class CnnModel(torch.nn.Module):
 
-    def __init__(self, input_size, output_size, hidden_layer_size=None) -> None:
-        super(FCModel, self).__init__()
+    def __init__(self, h, w, output_size):
+        super(CnnModel, self).__init__()
+        self.conv1 = torch.nn.Conv2d(in_channels=1, out_channels=16, kernel_size=5, stride=1)
+        self.conv2 = torch.nn.Conv2d(16, 32, kernel_size=5, stride=1)
+        self.conv3 = torch.nn.Conv2d(32, 32, kernel_size=5, stride=1)
 
+        # Number of Linear input connections depends on output of conv2d layers
+        # and therefore the input image size, so compute it.
+        def conv2d_size_out(size, kernel_size = 5, stride = 1):
+            return (size - (kernel_size - 1) - 1) // stride  + 1
 
+        convw = conv2d_size_out(conv2d_size_out(conv2d_size_out(w)))
+        convh = conv2d_size_out(conv2d_size_out(conv2d_size_out(h)))
+        linear_input_size = convw * convh * 32
+
+        self.head = torch.nn.Linear(linear_input_size, output_size)
+
+        self.relu = torch.nn.functional.relu
+
+    # Called with either one element to determine next action, or a batch
+    # during optimization. Returns tensor([[left0exp,right0exp]...]).
     def forward(self, x):
-        pass
+        x = self.relu(self.conv1(x))
+        x = self.relu(self.conv2(x))
+        x = self.relu(self.conv3(x))
+        return self.head(x.view(x.size(0), -1))
 
 
 
 class VizDoomAgent(Agent):
 
-    def __init__(self, env: gym.Env, alpha=0.005, u_c=500, eps=0.1, lr=0.005, res=(112, 64, 3)):
+    def __init__(self, env: gym.Env, alpha=0.005, u_c=500, eps=0.1, lr=0.005, res=(28, 16, 3)): # (112, 64, 3)
         super().__init__(env, alpha, u_c, eps, lr)
         self.resolution = res
 
+        self.net = CnnModel(res[0], res[1], self.a_space.n)
+        self.target_net = CnnModel(res[0], res[1], self.a_space.n)
+        self.target_net.load_state_dict(self.net.state_dict())
 
-
-    def train(self, buffer: Buffer, sample_size: int, gamma: float, debug=False):
-
-        samples = buffer.get_sample(sample_size)
-
+        self.loss_func = torch.nn.MSELoss() # the mean squared error
+        self.optimizer = torch.optim.SGD(self.net.parameters(), lr=lr)
 
 
     def act(self, ob, reward, done, debug=False):
+        # print(ob.shape)
         return super().act(self.preprocess(ob), reward, done, debug)
 
 
     def preprocess(self, img):
+        img = img[0]
         img = skimage.transform.resize(img, self.resolution)
         #passage en noir et blanc
         img = skimage.color.rgb2gray(img)
         #passage en format utilisable par pytorch
         img = img.astype(np.float32)
         # print(img.shape)
-        # img = img.reshape((self.resolution[0], self.resolution[1], 1))
+        img = img.reshape((1, self.resolution[0], self.resolution[1]))
         return img
 
 
