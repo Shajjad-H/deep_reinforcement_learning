@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 
 from collections import namedtuple
 
+import math
 
 
 # 2.1.1
@@ -37,6 +38,8 @@ class RewordRecorder():
 
     def recorde_episode(self):
         self.rewards.append(self.r_sum)
+
+
 
     def show(self):
         plt.plot(self.rewards)
@@ -132,9 +135,9 @@ class Agent():
         self.train_mod = True
 
 
-
     def preprocess(self, ob):
         return ob
+
 
     def load(self, path):
         print('model loaded from:', path)
@@ -147,7 +150,6 @@ class Agent():
         self.net.load_state_dict(checkpoint['model_state_dict'])
         # self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         self.net.eval()
-
 
 
     def save(self, path, epoch):
@@ -176,9 +178,6 @@ class Agent():
         # au début on explore bcp avec epsilon_proba=1
         # puis on limite exploration et on se concentre plus sur les meilleurs actions
 
-        if self.train_mod and self.epsilon_proba > self.epsilon_min:
-            self.epsilon_proba *= self.epsilon_decay
-
         inputs = torch.tensor([ob]).float()
         
         if self.train_mod:
@@ -197,6 +196,9 @@ class Agent():
 
 
     def train(self, buffer: Buffer, sample_size: int, gamma: float, debug=False):
+        
+        if self.train_mod and self.epsilon_proba > self.epsilon_min:
+            self.epsilon_proba *= self.epsilon_decay
 
         samples = buffer.get_sample(sample_size)
 
@@ -296,7 +298,6 @@ class CnnModel(torch.nn.Module):
         return self.head(x.view(x.size(0), -1))
 
 
-
 class VizDoomAgent(Agent):
 
     def __init__(self, env: gym.Env, alpha=0.005, u_c=500, eps=0.1, lr=0.005, res=(112, 64, 3)): # (112, 64, 3) (28, 16, 3)
@@ -311,11 +312,6 @@ class VizDoomAgent(Agent):
         self.optimizer = torch.optim.SGD(self.net.parameters(), lr=lr)
 
 
-    def act(self, ob, reward, done, debug=False):
-        # print(ob.shape)
-        return super().act(self.preprocess(ob), reward, done, debug)
-
-
     def preprocess(self, img):
         img = img[0]
         img = skimage.transform.resize(img, self.resolution)
@@ -328,8 +324,117 @@ class VizDoomAgent(Agent):
         return img
 
 
+
+def evaluate_agent(env, agent, episode_count, render=False):
+
+    reward = 0
+    done = False
+    reword_recorder = RewordRecorder()
+
+    actions = {}
+
+
+    for i in range(episode_count):
+        ob = env.reset()
+        step = 0
+        reword_recorder.start_episode()
+        while True:
+
+            action = agent.act(agent.preprocess(ob), reward, done)
+
+            if action in actions.keys():
+                actions[action] += 1
+            else:
+                actions[action] = 0
+
+            ob, reward, done, _ = env.step(action)
+
+            reword_recorder.add_value(reward)
+            if render:  env.render()
+
+            step += 1
+            if done:
+                if i % 100 == 0:
+                    print('episode {} done took {} steps'.format(i, step))
+                reword_recorder.recorde_episode()
+                break
+            # Note there's no env.render() here. But the environment still can open window and
+            # render if asked by env.monitor: it calls env.render('rgb_array') to record video.
+            # Video is not recorded every episode, see capped_cubic_video_schedule for details.
+
+    print('mean:', np.mean(reword_recorder.rewards))
+    print('max:', np.max(reword_recorder.rewards))
+    print('min:', np.min(reword_recorder.rewards))
+
+    return reword_recorder, actions
+
+
+
+def train_agent(env, agent, config):
+
+    gamma = config['gamma']
+    best_path = config['best_path']
+    last_path = config['last_path']
+    save_model = config['save_model']
+    batch_size = config['batch_size']
+    skip_frame = config['skip_frame']
+    buffer_size = config['buffer_size']
+    episode_count = config['episode_count']
+    
+
+    reward = 0
+    done = False
+    best_reward = -math.inf
+    reword_recorder = RewordRecorder()
+
+    buffer = Buffer(buffer_size)
+    actions = {}
+
+
+    for i in range(episode_count):
+        ob = env.reset()
+        reword_recorder.start_episode()
+        step = 0
+        while True:
+
+            action = agent.act(agent.preprocess(ob), reward, done)
+
+            if action in actions.keys():  actions[action] += 1
+            else:  actions[action] = 0
+
+
+            if step % skip_frame == 0:
+                interaction = Interaction(agent.preprocess(ob), action, None, None, None)
+                ob, reward, done, _ = env.step(action)
+                interaction = Interaction(interaction.state, interaction.action, agent.preprocess(ob), reward, done)
+
+                buffer.add_value(interaction)
+
+                if len(buffer) > batch_size:  
+                    agent.train(buffer, batch_size, gamma)
+            else:
+                _, reward, done, _ = env.step(action)
+
+            reword_recorder.add_value(reward)
+            step += 1
+
+            if done:
+                reword_recorder.recorde_episode()
+                if i % 50 == 0:
+                    print('episode {} done took {} steps and reward {} '.format(i, step, reword_recorder.rewards[-1]))
+                
+                if save_model and best_reward <= reword_recorder.rewards[-1]:
+                    best_reward = reword_recorder.rewards[-1]
+                    agent.save(best_path, i)
+
+                break
+    
+    if save_model:
+        agent.save(last_path, episode_count)
+
+    return reword_recorder, actions
+
+
 if __name__ == '__main__':
 
     _buffer_test()
-
- 
