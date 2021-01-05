@@ -278,7 +278,7 @@ class CnnModel(torch.nn.Module):
 
         # Number of Linear input connections depends on output of conv2d layers
         # and therefore the input image size, so compute it.
-        def conv2d_size_out(size, kernel_size = 5, stride = 2):
+        def conv2d_size_out(size, kernel_size = 4, stride = 2):
             return (size - (kernel_size - 1) - 1) // stride  + 1
 
         convw = conv2d_size_out(conv2d_size_out(w))
