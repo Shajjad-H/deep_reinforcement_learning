@@ -8,6 +8,7 @@ import random
 import skimage
 import numpy as np
 import matplotlib.pyplot as plt
+from skimage.transform import resize
 
 from collections import namedtuple
 
@@ -314,7 +315,7 @@ class VizDoomAgent(Agent):
 
     def preprocess(self, img):
         img = img[0]
-        img = skimage.transform.resize(img, self.resolution)
+        img = resize(img, self.resolution)
         #passage en noir et blanc
         img = skimage.color.rgb2gray(img)
         #passage en format utilisable par pytorch
@@ -355,7 +356,7 @@ def evaluate_agent(env, agent, episode_count, render=False):
             step += 1
             if done:
                 if i % 100 == 0:
-                    print('episode {} done took {} steps'.format(i, step))
+                    print('episode {} done took {} steps reward {} '.format(i, step, reward))
                 reword_recorder.recorde_episode()
                 break
             # Note there's no env.render() here. But the environment still can open window and

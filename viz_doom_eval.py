@@ -1,8 +1,13 @@
 import gym
+import vizdoomgym
+import numpy as np
+
+from src.models import evaluate_agent, VizDoomAgent, Interaction, RewordRecorder
+
+
+import gym
 import argparse
 from gym import wrappers, logger
-
-from src.models import evaluate_agent, CartPoleAgent, Interaction, RewordRecorder
 
 import numpy as np
 
@@ -28,7 +33,7 @@ if __name__ == "__main__":
     # env = wrappers.Monitor(env, directory=outdir, force=True)
     agent.load(PATH)
 
-    episode_count = 1000
+    episode_count = 250
 
     reword_recorder, actions = evaluate_agent(env, agent, episode_count, render=False)
 
