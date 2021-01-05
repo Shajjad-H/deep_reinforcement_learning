@@ -8,7 +8,7 @@
 `conda install -c conda-forge gym`
 
 
-et installer vizdoomgym en suivant le lien `https://github.com/shakenes/vizdoomgym`
+et installer vizdoomgym en suivant le lien (vizdoom)[https://github.com/shakenes/vizdoomgym]
 
 #### entrainement des models
 
