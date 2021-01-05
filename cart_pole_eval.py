@@ -30,7 +30,7 @@ if __name__ == "__main__":
 
     episode_count = 1000
 
-    reword_recorder, actions = evaluate_agent(env, agent, episode_count)
+    reword_recorder, actions = evaluate_agent(env, agent, episode_count, render=False)
 
 
     # Close the env and write monitor result info to disk
