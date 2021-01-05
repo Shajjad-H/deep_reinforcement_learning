@@ -7,6 +7,9 @@
 
 `conda install -c conda-forge gym`
 
+
+et installer vizdoomgym en suivant le lien `https://github.com/shakenes/vizdoomgym`
+
 #### entrainement des models
 
 Pour entrainner les modeles il suffit de lancer le fichier `cart_pole_train.py` pour l'agent Cart Pole.
