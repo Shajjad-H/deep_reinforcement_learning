@@ -283,7 +283,7 @@ class CnnModel(torch.nn.Module):
 
         convw = conv2d_size_out(conv2d_size_out(w))
         convh = conv2d_size_out(conv2d_size_out(h))
-        linear_input_size = convw * convh * 6
+        linear_input_size = convw * convh * 7
 
         self.head = torch.nn.Linear(linear_input_size, output_size)
 
