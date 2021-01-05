@@ -272,8 +272,8 @@ class CnnModel(torch.nn.Module):
 
     def __init__(self, h, w, output_size):
         super(CnnModel, self).__init__()
-        self.conv1 = torch.nn.Conv2d(in_channels=1, out_channels=8, kernel_size=5, stride=2)
-        self.conv2 = torch.nn.Conv2d(8, 8, kernel_size=5, stride=2)
+        self.conv1 = torch.nn.Conv2d(in_channels=1, out_channels=8, kernel_size=4, stride=2)
+        self.conv2 = torch.nn.Conv2d(8, 8, kernel_size=4, stride=2)
         # self.conv3 = torch.nn.Conv2d(32, 32, kernel_size=5, stride=1)
 
         # Number of Linear input connections depends on output of conv2d layers
