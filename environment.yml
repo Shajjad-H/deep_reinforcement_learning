@@ -5,6 +5,7 @@ channels:
   - defaults
 dependencies:
   - _libgcc_mutex=0.1=main
+  - autopep8=1.5.4=py_0
   - blas=1.0=mkl
   - blosc=1.20.1=hd408876_0
   - brotli=1.0.9=he6710b0_2
@@ -77,6 +78,7 @@ dependencies:
   - pcre=8.44=he6710b0_0
   - pillow=8.0.1=py38he98fc37_0
   - pip=20.3.3=py38h06a4308_0
+  - pycodestyle=2.6.0=py_0
   - pyglet=1.5.14=py38h578d9bd_0
   - pyparsing=2.4.7=py_0
   - pyqt=5.9.2=py38h05f1152_4
