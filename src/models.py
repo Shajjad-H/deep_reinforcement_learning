@@ -300,7 +300,7 @@ class CnnModel(torch.nn.Module):
 
 class VizDoomAgent(Agent):
 
-    def __init__(self, env: gym.Env, alpha=0.005, u_c=500, eps=0.1, lr=0.005, res=(112, 64, 3)): # (112, 64, 3) (28, 16, 3)
+    def __init__(self, env: gym.Env, alpha=0.005, u_c=500, eps=0.1, lr=0.005, res=(28, 16, 3)): # (112, 64, 3) (28, 16, 3)
         super().__init__(env, alpha, u_c, eps, lr)
         self.resolution = res
 
