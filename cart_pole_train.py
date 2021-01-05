@@ -30,7 +30,7 @@ if __name__ == "__main__":
     config = {
         'gamma': 0.9,
         'skip_frame': 1,
-        'batch_size': 128,
+        'batch_size': 64,
         'save_model': True,
         'episode_count': 1000,
         'buffer_size': 90000,
