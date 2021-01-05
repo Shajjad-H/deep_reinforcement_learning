@@ -29,10 +29,10 @@ if __name__ == "__main__":
 
     config = {
         'gamma': 0.9,
-        'skip_frame': 4,
+        'skip_frame': 3,
         'batch_size': 64,
         'save_model': True,
-        'episode_count': 200,
+        'episode_count': 400,
         'buffer_size': 20000,
         'best_path': 'saved_nets/viz_doom_best.pt',
         # 'last_path': 'saved_nets/viz_doom_last.pt',
