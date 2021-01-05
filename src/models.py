@@ -374,7 +374,6 @@ def train_agent(env, agent, config):
 
     gamma = config['gamma']
     best_path = config['best_path']
-    last_path = config['last_path']
     save_model = config['save_model']
     batch_size = config['batch_size']
     skip_frame = config['skip_frame']
@@ -429,8 +428,7 @@ def train_agent(env, agent, config):
 
                 break
     
-    if save_model:
-        agent.save(last_path, episode_count)
+
 
     return reword_recorder, actions
 

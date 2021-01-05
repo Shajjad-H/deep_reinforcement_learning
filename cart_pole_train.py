@@ -35,7 +35,7 @@ if __name__ == "__main__":
         'episode_count': 1000,
         'buffer_size': 90000,
         'best_path': 'saved_nets/cart_pole_best.pt',
-        'last_path': 'saved_nets/cart_pole_last.pt',
+        # 'last_path': 'saved_nets/cart_pole_last.pt',
     }
 
     reword_recorder, actions = train_agent(env, agent, config)
